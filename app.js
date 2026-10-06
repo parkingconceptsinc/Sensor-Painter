@@ -1,0 +1,40 @@
+const canvas=document.getElementById('paint'),ctx=canvas.getContext('2d'),$=id=>document.getElementById(id);
+const s={acc:{x:0,y:0,z:0},rot:{a:0,b:0,g:0},ori:{a:0,b:0,g:0},heading:0,light:0,lat:0,lon:0,touch:{x:.5,y:.5,active:false},x:.5,y:.5,px:.5,py:.5,t:performance.now(),points:0};
+let W=1,H=1,dpr=1,running=false,last=performance.now(),frames=0,fps=0,als=null,sensors=[];
+function resize(){const r=canvas.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);W=Math.max(1,r.width);H=Math.max(1,r.height);canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0)} addEventListener('resize',resize);resize();
+const num=(v,d=0)=>Number.isFinite(v)?v:d,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function paintPoint(x,y,dx,dy){const b=$('brush').value,c=num(parseFloat($('size').value),20),op=num(parseFloat($('opacity').value),.7),col=$('color').value;ctx.save();ctx.globalAlpha=op;ctx.lineCap='round';ctx.lineJoin='round';
+if(b==='ink'){ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,c*.5,0,7);ctx.fill()}
+if(b==='spray'){ctx.fillStyle=col;for(let i=0;i<18;i++){const a=Math.random()*7,r=Math.random()*c*1.8;ctx.globalAlpha=op*(1-r/(c*1.8))*.7;ctx.beginPath();ctx.arc(x+Math.cos(a)*r,y+Math.sin(a)*r,Math.max(.5,c*.025),0,7);ctx.fill()}}
+if(b==='ribbon'){ctx.strokeStyle=col;ctx.lineWidth=c;ctx.beginPath();ctx.moveTo(s.px*W,s.py*H);ctx.quadraticCurveTo((s.px*W+x)/2+dy*c,(s.py*H+y)/2-dx*c,x,y);ctx.stroke()}
+if(b==='glow'){const g=ctx.createRadialGradient(x,y,0,x,y,c*3);g.addColorStop(0,col);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.globalAlpha=op*.8;ctx.beginPath();ctx.arc(x,y,c*3,0,7);ctx.fill()}
+if(b==='dots'){ctx.fillStyle=col;for(let i=0;i<5;i++){const a=i*1.256;ctx.globalAlpha=op*(1-i*.12);ctx.beginPath();ctx.arc(x+Math.cos(a)*c,y+Math.sin(a)*c,c*.18,0,7);ctx.fill()}}
+if(b==='wash'){ctx.fillStyle=col;for(let i=0;i<4;i++){ctx.globalAlpha=op*.12;ctx.beginPath();ctx.arc(x+(Math.random()-.5)*c,y+(Math.random()-.5)*c,c*(.7+Math.random()*.8),0,7);ctx.fill()}}
+ctx.restore();s.points++}
+function draw(x,y){const dx=x-s.x,dy=y-s.y,e=$('effect').value;
+if(e==='fade'){ctx.save();ctx.globalAlpha=.035;ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);ctx.restore()}
+if(e==='mirror'){paintPoint(W-x,y,dx,dy);paintPoint(x,H-y,dx,dy);paintPoint(W-x,H-y,dx,dy)}
+if(e==='orbit'){const cx=W/2,cy=H/2,a=.018*(parseFloat($('speed').value)||1),co=Math.cos(a),si=Math.sin(a),ox=x-cx,oy=y-cy;paintPoint(cx+ox*co-oy*si,cy+ox*si+oy*co,dx,dy)}
+if(e==='chaos'){x+=(Math.random()-.5)*W*.05;y+=(Math.random()-.5)*H*.05}
+paintPoint(x,y,dx,dy);if(e==='trail'){paintPoint(x-dx*8,y-dy*8,dx,dy);paintPoint(x-dx*18,y-dy*18,dx,dy)}s.px=s.x;s.py=s.y;s.x=x/W;s.y=y/H}
+function drive(){const k=parseFloat($('sensitivity').value)||1,d=$('driver').value,a=s.acc,o=s.ori;let x=.5,y=.5;
+if(d==='motion'){x=.5+clamp(a.x*k/25,-.48,.48);y=.5-clamp(a.y*k/25,-.48,.48)}
+if(d==='tilt'){x=.5+clamp((o.g||0)/90*k,-.48,.48);y=.5+clamp((o.b||0)/180*k,-.48,.48)}
+if(d==='heading'){x=(s.heading%360)/360;y=.5+clamp(Math.sin((s.heading||0)*Math.PI/180)*.45,-.48,.48)}
+if(d==='geo'){x=.5+Math.sin(s.lon*Math.PI/180)*.45;y=.5-Math.sin(s.lat*Math.PI/180)*.45}
+if(d==='light'){x=.5+clamp(s.light/1000-.5,-.48,.48);y=.5-clamp(s.light/1000-.5,-.48,.48)}
+if(d==='touch'){x=s.touch.active?s.touch.x:.5+clamp(a.x*k/30,-.48,.48);y=s.touch.active?s.touch.y:.5-clamp(a.y*k/30,-.48,.48)}
+return[clamp(x,0,1),clamp(y,0,1)]}
+function frame(t){if(t-last<16){requestAnimationFrame(frame);return}last=t;frames++;if(t-s.t>1000){fps=frames*1000/(t-s.t);frames=0;s.t=t;$('fps').textContent=Math.round(fps)+' FPS';$('telemetry').textContent='acc  '+s.acc.x.toFixed(2)+' '+s.acc.y.toFixed(2)+' '+s.acc.z.toFixed(2)+'\nrot  '+s.rot.a.toFixed(1)+' '+s.rot.b.toFixed(1)+' '+s.rot.g.toFixed(1)+'\nori  '+s.ori.a.toFixed(1)+' '+s.ori.b.toFixed(1)+' '+s.ori.g.toFixed(1)+'\nheading '+s.heading.toFixed(1)+'°\nlight '+(s.light?s.light.toFixed(1):'—')+' lx\nGPS '+(s.lat?s.lat.toFixed(4):'—')+', '+(s.lon?s.lon.toFixed(4):'—')+'\ntrazos '+s.points;$('sensorState').textContent=running?'Sensores activos':'Modo táctil'}const p=drive();draw(p[0]*W,p[1]*H);requestAnimationFrame(frame)}requestAnimationFrame(frame);
+function motion(e){const a=e.accelerationIncludingGravity||e.acceleration;s.acc={x:num(a&&a.x),y:num(a&&a.y),z:num(a&&a.z)};const r=e.rotationRate;s.rot={a:num(r&&r.alpha),b:num(r&&r.beta),g:num(r&&r.gamma)}}
+function orientation(e){s.ori={a:num(e.alpha),b:num(e.beta),g:num(e.gamma)};s.heading=num(e.webkitCompassHeading,num(e.alpha));}
+function touch(ev){const r=canvas.getBoundingClientRect();s.touch={x:clamp((ev.clientX-r.left)/r.width,0,1),y:clamp((ev.clientY-r.top)/r.height,0,1),active:true}}
+canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture&&canvas.setPointerCapture(e.pointerId);touch(e)});canvas.addEventListener('pointermove',e=>{if(e.buttons)touch(e)});canvas.addEventListener('pointerup',()=>s.touch.active=false);
+async function requestSensors(){running=true;let ok=0;
+try{if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){if(await DeviceMotionEvent.requestPermission()==='granted')ok++}else if('DeviceMotionEvent'in window)ok++;addEventListener('devicemotion',motion)}catch(e){}
+try{if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){if(await DeviceOrientationEvent.requestPermission()==='granted')ok++}else if('DeviceOrientationEvent'in window)ok++;addEventListener('deviceorientation',orientation)}catch(e){}
+if(navigator.geolocation)navigator.geolocation.watchPosition(p=>{s.lat=p.coords.latitude;s.lon=p.coords.longitude},()=>{},{enableHighAccuracy:true,maximumAge:1000});
+if('AmbientLightSensor'in window){try{als=new AmbientLightSensor();als.addEventListener('reading',()=>s.light=als.illuminance);als.start();ok++}catch(e){}}
+for(const item of [['Accelerometer','accel'],['Gyroscope','gyro'],['Magnetometer','mag']]){const Type=item[0],key=item[1];if(Type in window){try{const q=new window[Type]({frequency:30});q.addEventListener('reading',()=>{if(key==='accel')s.acc={x:num(q.x),y:num(q.y),z:num(q.z)};if(key==='gyro')s.rot={a:num(q.x)*57.3,b:num(q.y)*57.3,g:num(q.z)*57.3};if(key==='mag')s.heading=(Math.atan2(q.y,q.x)*180/Math.PI+360)%360});q.start();sensors.push(q);ok++}catch(e){}}}
+$('status').textContent=ok?'Sensores habilitados':'APIs/permisos limitados';$('activate').textContent='Sensores activos'}
+$('activate').addEventListener('click',requestSensors);$('clear').addEventListener('click',()=>{ctx.clearRect(0,0,W,H);s.points=0});$('save').addEventListener('click',()=>{const a=document.createElement('a');a.download='sensor-painting-'+Date.now()+'.png';a.href=canvas.toDataURL('image/png');a.click()});if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
