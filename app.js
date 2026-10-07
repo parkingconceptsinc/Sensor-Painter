@@ -1,6 +1,6 @@
 const canvas=document.getElementById('paint'),ctx=canvas.getContext('2d'),$=id=>document.getElementById(id);
 const s={acc:{x:0,y:0,z:0},rot:{a:0,b:0,g:0},ori:{a:0,b:0,g:0},heading:0,light:0,lat:0,lon:0,touch:{x:.5,y:.5,active:false},x:.5,y:.5,px:.5,py:.5,t:performance.now(),points:0};
-let W=1,H=1,dpr=1,running=false,last=performance.now(),frames=0,fps=0,als=null,sensors=[],rafId=0;
+let W=1,H=1,dpr=1,running=false,last=performance.now(),frames=0,fps=0,als=null,sensors=[],rafId=0,gpsWatch=null,starting=false;
 function resize(){const r=canvas.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);W=Math.max(1,r.width);H=Math.max(1,r.height);canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0)} addEventListener('resize',resize);resize();
 const num=(v,d=0)=>Number.isFinite(v)?v:d,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 function paintPoint(x,y,dx,dy){const b=$('brush').value,c=num(parseFloat($('size').value),20),op=num(parseFloat($('opacity').value),.7),col=$('color').value;ctx.save();ctx.globalAlpha=op;ctx.lineCap='round';ctx.lineJoin='round';
@@ -30,11 +30,12 @@ function frame(t){rafId=0;if(!running&&!s.touch.active)return;if(t-last<16){star
 function orientation(e){s.ori={a:num(e.alpha),b:num(e.beta),g:num(e.gamma)};s.heading=num(e.webkitCompassHeading,num(e.alpha));}
 function touch(ev){const r=canvas.getBoundingClientRect();s.touch={x:clamp((ev.clientX-r.left)/r.width,0,1),y:clamp((ev.clientY-r.top)/r.height,0,1),active:true}}
 canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture&&canvas.setPointerCapture(e.pointerId);touch(e);startLoop()});canvas.addEventListener('pointermove',e=>{if(e.buttons)touch(e)});canvas.addEventListener('pointerup',()=>s.touch.active=false);
-async function requestSensors(){running=true;startLoop();let ok=0;
+function stopSensors(){running=false;starting=false;if(gpsWatch!==null&&navigator.geolocation){navigator.geolocation.clearWatch(gpsWatch);gpsWatch=null}removeEventListener('devicemotion',motion);removeEventListener('deviceorientation',orientation);for(const q of sensors){try{q.stop()}catch(e){}}sensors=[];if(als){try{als.stop()}catch(e){}als=null}$('sensorState').textContent=s.touch.active?'Modo táctil':'Sin sensores';$('status').textContent='Sensores detenidos';$('activate').textContent='Activar sensores'}
+async function requestSensors(){if(starting)return;if(running){stopSensors();return}starting=true;let ok=0;
 try{if(typeof DeviceMotionEvent!=='undefined'&&typeof DeviceMotionEvent.requestPermission==='function'){if(await DeviceMotionEvent.requestPermission()==='granted')ok++}else if('DeviceMotionEvent'in window)ok++;addEventListener('devicemotion',motion)}catch(e){}
 try{if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){if(await DeviceOrientationEvent.requestPermission()==='granted')ok++}else if('DeviceOrientationEvent'in window)ok++;addEventListener('deviceorientation',orientation)}catch(e){}
-if(navigator.geolocation)navigator.geolocation.watchPosition(p=>{s.lat=p.coords.latitude;s.lon=p.coords.longitude},()=>{},{enableHighAccuracy:true,maximumAge:1000});
+if(navigator.geolocation)gpsWatch=navigator.geolocation.watchPosition(p=>{s.lat=p.coords.latitude;s.lon=p.coords.longitude},()=>{},{enableHighAccuracy:true,maximumAge:1000});
 if('AmbientLightSensor'in window){try{als=new AmbientLightSensor();als.addEventListener('reading',()=>s.light=als.illuminance);als.start();ok++}catch(e){}}
 for(const item of [['Accelerometer','accel'],['Gyroscope','gyro'],['Magnetometer','mag']]){const Type=item[0],key=item[1];if(Type in window){try{const q=new window[Type]({frequency:30});q.addEventListener('reading',()=>{if(key==='accel')s.acc={x:num(q.x),y:num(q.y),z:num(q.z)};if(key==='gyro')s.rot={a:num(q.x)*57.3,b:num(q.y)*57.3,g:num(q.z)*57.3};if(key==='mag')s.heading=(Math.atan2(q.y,q.x)*180/Math.PI+360)%360});q.start();sensors.push(q);ok++}catch(e){}}}
-$('status').textContent=ok?'Sensores habilitados':'APIs/permisos limitados';$('activate').textContent='Sensores activos'}
+starting=false;running=ok>0;if(running)startLoop();$('status').textContent=ok?'Sensores habilitados':'APIs/permisos limitados';$('activate').textContent=running?'Detener sensores':'Activar sensores'}
 $('activate').addEventListener('click',requestSensors);$('clear').addEventListener('click',()=>{ctx.clearRect(0,0,W,H);s.points=0});$('save').addEventListener('click',()=>{const a=document.createElement('a');a.download='sensor-painting-'+Date.now()+'.png';a.href=canvas.toDataURL('image/png');a.click()});if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
