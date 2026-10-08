@@ -40,14 +40,16 @@ function brushSensorFactor(){const source=$('brushSensor').value;if(source==='no
 function sensorBrushColor(base,f){const mode=$('brushColorSensor').value;if(mode==='none')return base;const h=mode==='motion'?Math.round(f*240):mode==='tilt'?Math.round(180+f*160):mode==='light'?Math.round(30+f*300):Math.round((s.heading%360+360)%360);return 'hsl('+h+' 90% 60%)'}
 function sensorBrushBehavior(b,f){const mode=$('brushBehaviorSensor').value;if(mode==='none')return b;if(mode==='motion')return f>.66?'spray':f>.33?'glow':b;if(mode==='tilt')return f>.7?'ribbon':b;if(mode==='touch')return s.touch.active?'dots':b;return b}
 function cameraPaintBoost(){if(!$('cameraPaintLink').checked||!cameraStream)return 1;const source=$('cameraPaintSensor').value;if(source==='motion')return 1+cameraSensorAmount()*.8;if(source==='light')return 1+cameraSensorAmount()*.5;if(source==='tilt')return 1+cameraSensorAmount()*.7;if(source==='heading')return 1+cameraSensorAmount()*.4;return 1}
+const cameraProbe=document.createElement('canvas');cameraProbe.width=1;cameraProbe.height=1;const cameraProbeCtx=cameraProbe.getContext('2d');
 function cameraSampleColor(x,y){
  const v=$('cameraVideo');
  if(!cameraStream||v.readyState<2)return $('color').value;
- const probe=document.createElement('canvas');probe.width=1;probe.height=1;
- const p=probe.getContext('2d');
- const sx=clamp(x/W,0,1)*v.videoWidth,sy=clamp(y/H,0,1)*v.videoHeight;
- p.drawImage(v,Math.max(0,sx-2),Math.max(0,sy-2),4,4,0,0,1,1);
- const d=p.getImageData(0,0,1,1).data;
+ let nx=clamp(x/W,0,1);
+ if(cameraFacing==='user'&&$('cameraMirror').checked)nx=1-nx;
+ const sx=nx*v.videoWidth,sy=clamp(y/H,0,1)*v.videoHeight;
+ cameraProbeCtx.clearRect(0,0,1,1);
+ cameraProbeCtx.drawImage(v,Math.max(0,sx-2),Math.max(0,sy-2),4,4,0,0,1,1);
+ const d=cameraProbeCtx.getImageData(0,0,1,1).data;
  return 'rgb('+d[0]+' '+d[1]+' '+d[2]+')';
 }
 function cameraPaintColor(base,x,y){if(!cameraStream)return base;if($('cameraColorCamera').checked)return cameraSampleColor(x,y);if(!$('cameraColorLink').checked)return base;const amount=cameraSensorAmount();const h=Math.round(amount*360);return 'hsl('+h+' 90% 60%)'}
