@@ -52,8 +52,19 @@ function cameraSampleColor(x,y){
  const d=cameraProbeCtx.getImageData(0,0,1,1).data;
  return 'rgb('+d[0]+' '+d[1]+' '+d[2]+')';
 }
+function cameraSampleBrightness(x,y){
+ const v=$('cameraVideo');
+ if(!cameraStream||v.readyState<2)return 1;
+ let nx=clamp(x/W,0,1);
+ if(cameraFacing==='user'&&$('cameraMirror').checked)nx=1-nx;
+ const sx=nx*v.videoWidth,sy=clamp(y/H,0,1)*v.videoHeight;
+ cameraProbeCtx.clearRect(0,0,1,1);
+ cameraProbeCtx.drawImage(v,Math.max(0,sx-2),Math.max(0,sy-2),4,4,0,0,1,1);
+ const d=cameraProbeCtx.getImageData(0,0,1,1).data;
+ return clamp((d[0]*.2126+d[1]*.7152+d[2]*.0722)/255,.05,1);
+}
 function cameraPaintColor(base,x,y){if(!cameraStream)return base;if($('cameraColorCamera').checked)return cameraSampleColor(x,y);if(!$('cameraColorLink').checked)return base;const amount=cameraSensorAmount();const h=Math.round(amount*360);return 'hsl('+h+' 90% 60%)'}
-function paintPoint(x,y,dx,dy){const p=activeCtx();if(!p)return;const rawBrush=$('brush').value,f=brushSensorFactor(),b=sensorBrushBehavior(rawBrush,f),baseSize=num(parseFloat($('size').value),20),baseOpacity=num(parseFloat($('opacity').value),.7),boost=cameraPaintBoost(),c=baseSize*(1+f)*boost,op=clamp(baseOpacity*(.65+.35*f),0,1),col=cameraPaintColor(sensorBrushColor($('color').value,f),x,y);p.save();p.globalAlpha=op;p.lineCap='round';p.lineJoin='round';
+function paintPoint(x,y,dx,dy){const p=activeCtx();if(!p)return;const rawBrush=$('brush').value,f=brushSensorFactor(),b=sensorBrushBehavior(rawBrush,f),baseSize=num(parseFloat($('size').value),20),baseOpacity=num(parseFloat($('opacity').value),.7),boost=cameraPaintBoost(),cameraBrightness=$('cameraBrightnessLink').checked?cameraSampleBrightness(x,y):1,c=baseSize*(1+f)*boost,op=clamp(baseOpacity*(.65+.35*f)*cameraBrightness,0,1),col=cameraPaintColor(sensorBrushColor($('color').value,f),x,y);p.save();p.globalAlpha=op;p.lineCap='round';p.lineJoin='round';
 if(b==='ink'){p.fillStyle=col;p.beginPath();p.arc(x,y,c*.5,0,7);p.fill()}
 if(b==='spray'){p.fillStyle=col;for(let i=0;i<18;i++){const a=Math.random()*7,r=Math.random()*c*1.8;p.globalAlpha=op*(1-r/(c*1.8))*.7;p.beginPath();p.arc(x+Math.cos(a)*r,y+Math.sin(a)*r,Math.max(.5,c*.025),0,7);p.fill()}}
 if(b==='ribbon'){p.strokeStyle=col;p.lineWidth=c;p.beginPath();p.moveTo(s.px*W,s.py*H);p.quadraticCurveTo((s.px*W+x)/2+dy*c,(s.py*H+y)/2-dx*c,x,y);p.stroke()}
