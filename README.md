@@ -16,5 +16,4 @@ PWA experimental que convierte movimiento y sensores del teléfono en pintura ge
 ## GitHub Pages
 Settings → Pages → Deploy from a branch → main → /(root). Muchas APIs de sensores requieren HTTPS.
 
-No existe una API web universal para acceder literalmente a todos los sensores físicos. La app usa las APIs que el navegador expone y fallbacks para compatibilidad, especialmente en iOS/Safari.fa
-ere
+No existe una API web universal para acceder literalmente a todos los sensores físicos. La app usa las APIs que el navegador expone y fallbacks para compatibilidad, especialmente en iOS/Safari.
